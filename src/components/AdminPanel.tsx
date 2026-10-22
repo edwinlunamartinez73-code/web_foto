@@ -37,6 +37,16 @@ function getImageContentType(file: File) {
   return contentTypeFromExtension ?? IMAGE_TYPES_BY_MIME[normalizedMimeType] ?? null;
 }
 
+function sanitizeFileName(name: string) {
+  return name
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, "-")
+    .replace(/[^a-zA-Z0-9._-]/g, "")
+    .replace(/-+/g, "-")
+    .replace(/^[.-]+|[.-]+$/g, "") || "imagen";
+}
+
 function AdminPanel({ user }: AdminPanelProps) {
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [title, setTitle] = useState("");
@@ -94,10 +104,9 @@ function AdminPanel({ user }: AdminPanelProps) {
     let uploaded = false;
     try {
       const uniqueId = `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
-      const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "-");
-      const path = `${user.id}/${uniqueId}-${safeName}`;
+      const path = `${user.id}/${uniqueId}-${file.name}`;
       const { error: uploadError } = await supabase.storage.from("photos").upload(path, file, {
-        contentType,
+        contentType: contentType || file.type || "image/jpeg",
         upsert: false,
       });
       if (uploadError) {
@@ -125,8 +134,12 @@ function AdminPanel({ user }: AdminPanelProps) {
       setNotice("Fotografía subida como oculta. Puedes publicarla desde la lista.");
       uploaded = true;
     } catch (error) {
-      const reason = error instanceof Error ? error.message : "Error inesperado.";
-      setErrorMessage(`No se pudo completar la subida de la imagen: ${reason}`);
+      if (error instanceof TypeError) {
+        setErrorMessage("Error de red al subir la imagen. Verifica tu conexión e inténtalo de nuevo.");
+      } else {
+        const reason = error instanceof Error ? error.message : "Error inesperado.";
+        setErrorMessage(`No se pudo completar la subida de la imagen: ${reason}`);
+      }
     } finally {
       setBusy(false);
     }
@@ -253,7 +266,14 @@ function AdminPanel({ user }: AdminPanelProps) {
                   return;
                 }
                 setErrorMessage("");
-                setFile(nextFile);
+                setFile(
+                  nextFile
+                    ? new File([nextFile], sanitizeFileName(nextFile.name), {
+                        type: getImageContentType(nextFile) ?? nextFile.type ?? "image/jpeg",
+                        lastModified: nextFile.lastModified,
+                      })
+                    : null,
+                );
               }}
               className="mt-2 block w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-[0.65rem] text-sm text-slate-300 file:mr-3 file:rounded-lg file:border-0 file:bg-slate-700 file:px-3 file:py-1.5 file:text-sm file:text-white"
             />
