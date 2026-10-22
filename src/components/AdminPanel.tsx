@@ -103,8 +103,9 @@ function AdminPanel({ user }: AdminPanelProps) {
     setNotice("");
     let uploaded = false;
     try {
-      const uniqueId = `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
-      const path = `${user.id}/${uniqueId}-${file.name}`;
+      const fileExtension = file.name.split(".").pop()?.toLowerCase() || "jpg";
+      const cleanFileName = `${Date.now()}_${Math.random().toString(36).substring(2, 7)}.${fileExtension}`;
+      const path = `${user.id}/${cleanFileName}`;
       const { error: uploadError } = await supabase.storage.from("photos").upload(path, file, {
         contentType: contentType || file.type || "image/jpeg",
         upsert: false,
